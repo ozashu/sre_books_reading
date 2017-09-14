@@ -1,0 +1,218 @@
+## 第Ⅲ部 実践
+
+- SREは幅広い活動が必要
+  - モニタリングシステムの開発
+  - キャパシティプランニング
+  - インシデント対応
+  - サービス障害の根本原因が解決されていることの確認など
+- 第Ⅲ部ではSREの日々の活動、大規模な分散コンピューティングのシステムの構築と運用における理論と実践を取り上げる
+http://psychclassics.yorku.ca/Maslow/motivation.htm
+- サービスの健全性の分類
+  - システムがサービスとして一通り機能するための最も基本的な必要条件から、自己実現を可能とし問題に受動的に対応するのではなく、サービスの方向性を能動的にコントロールするような、より高いレベルの機能に至るまでの段階  
+- googleではFigure 3-1のようなサービスの信頼性の階層を使ってる
+- モニタリング
+  - monitoringなしではサービスが稼働しているのかどうかを判断することはできない
+  - しっかり設計しましょう
+  - エラーに関してユーザーがそれらを気づく前に問題を認識したい
+  - 10章で解説する
+- インシデント対応
+  - オンコールとは
+    - 分散コンピューティングシステムが実際にどのように動作して(障害を起こしているか)を実感し続けていられるようにするためのツール
+  - オンコールと他の職務とのバランスの取り方について説明を11章で解説する(オンコール対応)
+  - 問題があることがわかった場合は、どのようにしてそれを解消するのか
+  - インシデントに対して効率的に対応することは、チーム全体に対して当てはまること
+  - 12章で解説する(効果的なトラブルシューティング)
+  - インシデントが発生している間は,アドレナリンに負けて、アドホックな対応をやってしまいがち(ad hoc=場当たり的な、その場限りの)
+  - この誘惑に負けないようにする方法を13章で解説する(緊急対応)
+  - 効果的なインシデント管理を14章で解説する
+- ポストモーテム/根本原因分析(postmortem:事後分析)
+  - 私たちは、サービスに生じた新しくて刺激的な問題だけをアラートの対象とし、手作業で解決することを目標としています。
+  - 何度も同じ問題を「修正」するためにひどく退屈
+  - 15章(ポストモーテムの文化：失敗からの学び)の非難を伴わないポストモーテム文化は何が間違いだったのか、正しかったのかを理解するためのはじめの一歩
+  - 16章(サービス障害の追跡)でoutage trackerというツールの説明。
+  - SRE teams はプロダクション環境に最近起きたインシデントと、各インシデントの原因および対応策を追跡できます。
+- テスト及びリリース手順
+  - 17章(信頼性のためのテスト)でテストスイートの使い方を説明
+- キャパシティプランニング
+  - 18章(SREにおけるソフトウェアエンジニアリング)では
+    - a tool for automating capacity planning.
+  - 19章(フロントエンドにおけるロードバランシング)
+    - 私達のサービスへのリクエストがデータセンターに送られるかは20,21章につながる
+  - 20章(データセンターでのロードバランシング)
+  - 21章(過負荷への対応)
+  - 22章(カスケード障害への対応)cascade:連鎖的反応
+    - 時間が経つに連れ大きくなる障害
+- 開発
+  - 23章(クリティカルな状態の管理: 信頼性のための分散合意)
+    - 分散合意は、地球上に分散されているCronのシステムを含むGoogleの多くの分散システムにおいて、(Paxosという姿をとって)核となっています
+  - 24章(cronによる分散定期スケジューリング)
+    - データセンター全体、更にはそれを超えてスケールするという難題を解決するシステムの概要を説明します
+  - 25章(データ処理のパイプライン)
+    - 多様なアーキテクチャからは驚くべきそして、直感に反する課題が生じます
+  - 26章(データの完全性: What You Read Is What You Wrote)
+    - データを安全に保つ方法
+- プロダクト
+  - 27章(大規模なプロダクトのローンチにおける信頼性)
+    - 初日から最良の体験をユーザに届けるために、Googleがどのように大規模なプロダクトのローンチで信頼性を保っているのかを説明
+
+### 10章 時系列データからの実践的なアラート
+- プロダクション環境に対する欲求階層の最下層
+- サービスの安定稼働のためにかかせない部分
+- ビジネス目標とサービスの方向性を決定したりするのに必要なこと(第6章)
+- 大規模なシステムのモニタリングは難しいものでその理由は
+  - (解析するコンポーネント数が大量にある)
+  - 運用するエンジニアのメンテナンスの負荷を考慮する必要がある
+- googleのモニタリングシステムはシンプルなメトリックだけではない
+- 一つのサーバの故障でアラートを鳴らさない
+  - それらのデータは対応するには騒々しすぎる
+- その代わりにシステム構築の際は、依存対象のシステムの障害に対する強力な耐性を持たせるようにしていく。冗長化して堅牢なシステムにする
+- 大量のコンポーネントを管理するよりも、例外を取り除いて、集約したシグナルになるように大規模なシステムを設計すべき
+  - 必要なのは、高レベルのサービスの目的に関するアラートを発しながら、必要に応じて個々のコンポーネントの調査もできる粒度の情報を保っておいてくれるようなモニタリングシステム
+- 粒度が大切
+- googleは10年の歳月をかけてチェックスクリプト形式の古典的な方法から新たなパラダイムへと進化させた
+
+- Borgmonの誕生
+  - borgmonはborgを保管するために、監視システムとして作られた
+  - この章では、内部の監視ツールのアーキテクチャとプログラミングインタフェースについて説明する
+  - 近年ではカンブリア紀の大爆発のように監視ツールが登場している
+    - Riemann, Heka, Bosun, and Prometheus
+	- これらはborgmonの事例列ベースのアラートによく似た機能を持っています
+	- 特にPrometheusはルール言語にBorgmonと多くの類似点がある
+- 障害検知のためのカスタムスクリプトを実行するのではなく、共通のデータ公開フォーマットを利用します
+  - オーバーヘッドを低く抑えながら大量データの収集を可能にし、サブプロセスの実行およびネットワーク接続のコストを回避することができる
+  - これをホワイトボックスモニタリングとよんでいる
+- データはグラフ描画とアラート生成に使われる
+- 大量のデータをとるにはメトリクスのフォーマットの標準化が必要
+  - 例えばHTTP フェッチ
+  ```
+% curl http://webserver:80/varz
+http_requests 37
+errors_total 12
+  ```
+- Borgmanは、他のBorgmanからデータを収集することができるので、サービスのトポロジに沿った階層構造を構築し、情報の集計と要約を行った上で、各レベルで戦略的に多少のデータを破棄できる
+  - チームは一つのクラスタ毎にクラスタ毎に一つのBorgmonを動作させ、グローバルなレベルでは2つのBorgmonを動作させまる
+  - 非常に大規模なサービスの場合、クラスタのレベルの下に多くのスクレイパーBorgmonを置いて処理を分担させ、その結果をクラスタレベルのBorgmonに転送させることもる
+
+- 10.2 アプリケーションのインスツルメンテーション
+  -  (instrumentation計測:コンピュータプログラミングの文脈において、計測とは、製品の性能のレベルを監視または測定し、エラーを診断し、トレース情報を書き込む能力を指す)
+  - varzのHTTPハンドラは空白で区切られたプレーンテキストで以下のように表示される
+  - HTTPのレスポンスを含むマップ型変数の例
+  ```
+http_responses map:code 200:25 404:0 500:12
+  ```
+- スキーマを持たないテキストベースのこのインターフェースが、新しいインスツルメンテーションの追加の障壁を非常に低くしてくれることは明らかだった。これは、ソフトウェアエンジニアリングのチームにとっても、SREのチームにとってもいいこと。しかしながら, この方法は継続的に行われるメンテナンスに対するトレードオフがある。変更管理に注意が必要。
+
+- コラム 変数のエクスポート
+  - OpenLDAPは,cn=Monitorというサブツリーを使ってこのエクスポートを行う。MySQLはshow variablesクエリで状態をレポート。Apacheはmod_statusハンドラ
+  - golang expvar expvarmon
+    - https://golang.org/pkg/expvar/
+    - http://golang.jp/pkg/expvar
+    - http://klabgames.tech.blog.jp.klab.com/archives/1047514565.html
+- 10.3 エクスポートされたデータの収集
+  - ターゲットを探すには適切な名前解決手段が必要
+  - ターゲットリストは、動的なものであることが多いので、サービスディスカバリを利用することで、リストのメンテナンスコストを削減し、監視を拡張できる.
+  - 事前に定義された間隔で、Borgmonは、各ターゲットに/ varzというURIからフェッチし、結果をデコードし、値をメモリ内に保存
+  - Borgmonは、収集インターバル全体にわたってターゲットリスト中の各インスタンスからの収集のタイミングを分散させるので、各ターゲットからの収集は、他のターゲットと足並みをそろえて行われるわけではない
+
+- 10.4 Storage in the Time-Series Arena
+  - figure10-1のように管理
+  - in-memory databaseを使用し、一定期間が経つとdiskに書き込む
+  - In practice, the structure is a fixed-sized block of memory, known as the time-series arena, with a garbage collector that expires the oldest entries once the arena is full.
+  - horizon
+    - RAM内の一番古いエントリと一番新しいエントリの差
+    - datacenter Borgmonとglobal Borgmonは12時間
+    - 一つのデータに24byte必要だと12時間、1分単位では17GBのRAMを使う
+  - RAMではなくディスクにするものはTSDBと呼ばれる
+  - Borgmonでは古いデータをTSDBに投げる
+    - TSDBは遅いが、安く巨大なデータを扱える
+
+- 10.4.1 Labels and Vectors
+  - figure10-2のように一次元にvalueを突っ込んでいく
+  - timestampは不要
+    - because the values are inserted in the vector at regular intervals in time
+    - インターバルがわかれば計算できる
+  - 時系列データの名前はlabelsetである
+  - labelsetはkey=valueの1以上のペア(labes)からなる(varz pageにkeyはある)
+  - TSDBで一意にするために最低でも以下のlabelは付いている
+    - var  the name of the variable
+    - job  the name given to the type of server being monitored
+    - service  A loosely defined collection of jobs that provide a service to users, either internal or external
+    - zone  location (typically the datacenter)
+  - labelsetの例
+    - {var=http_requests,job=webserver,instance=host0:80,service=web,zone=us-west}
+  - 問い合わせクエリはすべてのlabelをセットする必要はない
+    - その場合はmatchしたものすべてが変える
+    - 問い合わせ {var=http_requests,job=webserver,service=web,zone=us-west}
+      - {var=http_requests,job=webserver,instance=host0:80,service=web,zone=us-west} 10
+      - {var=http_requests,job=webserver,instance=host1:80,service=web,zone=us-west} 9
+      - {var=http_requests,job=webserver,instance=host2:80,service=web,zone=us-west} 11
+      - {var=http_requests,job=webserver,instance=host3:80,service=web,zone=us-west} 0
+      - {var=http_requests,job=webserver,instance=host4:80,service=web,zone=us-west} 10
+    - 時間指定もできる  {var=http_requests,job=webserver,service=web,zone=us-west}[10m]
+      -  {var=http_requests,job=webserver,instance=host0:80, ...} 0 1 2 3 4 5 6 7 8 9 10
+      -  {var=http_requests,job=webserver,instance=host1:80, ...} 0 1 2 3 4 4 5 6 7 8 9
+      -  {var=http_requests,job=webserver,instance=host2:80, ...} 0 0 0 0 0 0 0 0 0 0 0
+      -  {var=http_requests,job=webserver,instance=host3:80, ...} 0 1 2 3 4 5 6 7 8 9 10
+
+- 10.5 ルールの評価
+  - webserverの例
+    - 1クラスタのすべてのホスト(task)のステータスコード200以外のパーセンテージでアラート設定(エラーレート)
+    - 達成するには以下が必要
+      - すべてのtaskでレスポンスコードのレートの集計して、 時間内のエラーレートのベクターを出力
+      - ↑の合計エラーレート(sum of that vector) 時間内のクラスタのエラーレートを出力(single value) 200コードは除いて計算する
+      - クラスターをまたがったエラーレートをリクエストする トータルエラーレートを到着したエラーレートで割る クラスター内のエラーレートを出力する
+    - 115ページ下の方
+      - 116ページの例
+      - エラーレートをsumで足しておりtask:http_requestのエラーレートの合計がdc:http_requestとなる
+      - 今回の例では10分間のエラーレート
+        - “task HTTP requests 10-minute rate” and “datacenter HTTP requests 10-minute rate.”
+    - 117ページ
+      - 最終的に出てくる {var=dc:http_errors:ratio_rate10m,job=webserver}
+        - これでdcでのエラーレートはこのBorgmonに問い合わせるだけで良い
+- 10.6 アラート
+  - さっきの例ではエラーレートが0.15 > 0.01 だが、カウントが1なのでペンディングされる
+  - もう一度来たら2 > 1になる、2分間ペンディングになり、その後アラートが発行される
+  - 中央集中のAlertmanagerに通知される
+    - Alert PPCを受け取るとAlertmanagerは正しいところに通知をする
+
+- 10.7 モニタリングのトポロジーのシャーディング
+  - Borgmonは他のBorgmonの時系列データをインポートできる
+  - 一つのBorgmonがサービス内の全タスクからデータを集めようとするとボトルネックになり、設計上のSPOFになる。
+  - ストリーミングプロトコルでBorgmon間での時系列データの転送をすることでCPU、NW通信量をテキストベースのvarzよりも節約できる
+  - データセンターBorgmon
+    - スクレイピングだけを行うレイヤー
+    - 集計のためのルールの評価の大部分を実行する、データセンター単位での集計のレイヤー
+  - グローバルBorgmon
+    - ルールの評価とダッシュボードのレイヤーに分けられることもある
+- 10.8 ブラックボックスモニタリング
+  - いわゆる外形監視
+    - white-box monitoring means that you aren’t aware o what the users see.DNSエラーとかが見えないとか
+  - Proberでやっている
+    - runs a protocol check against a target and reports success or failure.
+    - The prober can send alerts directly to Alertmanager, or its own varz can be collected by a Borgmon
+    - アラートマネージャに直接送るか自身のvarzでBorgmonに取得させる
+  - validate the response payload of the protocol (HTML contents of an HTTP response)
+    - response times by operation type and payload size
+      - they can slice and dice the user-visible performance.
+      - データサイズを取るのはいいのかも知れない
+  - can be pointed at either the frontend domain or behind the load balancer.
+    - detect localized failures and suppress alerts.
+- 10.9 設定のメンテナンス
+  - Borgmon はルール言語のテンプレートもサポートしている。
+  - エンジニアはマクロに似たこのシステムを利用し、再利用できるルールライブラリを構築できます。
+  - 広範囲のユニットテストと回帰テストを構築する方法を提供
+  - プロダクションモニタリングチームがCIを運用
+    - 設定が配布されると、Borgmonはその内容を検証してから受け入れる
+  - ライブラリが大きく分けて2種類
+  - 同じライブラリを使う場合、そのvarzのテンプレートを再利用できるにしただけのもの
+    - HTTP サーバライブラリ
+    - メモリアロケーション
+    - ストレージクライアントライブラリ
+    - 汎用のRPCサービス  
+  - エクスポートされた変数の汎用集計ルールが含まれているライブラリで、エンジニアはサービスのトポロジをモデル化するためにルールをできる。
+    - 多くのデータセンターで動作しているサービスが単一のグローバルなAPIを提供しているとする
+- 10.10 10年が経過して
+  - Borgmonはアラートと診断のための大量の変数の収集と時系列データに対する集中化されたルールの評価に置き換えた
+  - メンテナンスコストがサービスのサイズに比例しないようにすることが、モニタリング(および全ての継続的な運用作業)をメンテナンス可能にするための鍵
+
+vUmpdRNS
