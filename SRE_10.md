@@ -7,6 +7,10 @@
   - サービス障害の根本原因が解決されていることの確認など
 - 第Ⅲ部ではSREの日々の活動、大規模な分散コンピューティングのシステムの構築と運用における理論と実践を取り上げる
 http://psychclassics.yorku.ca/Maslow/motivation.htm
+![マズローの欲求5段階説](https://cdn.amebaowndme.com/madrid-prd/madrid-web/images/sites/169842/7edc970f6204247da875013ba0fa2d33_c5b00d693858c84e2a29a8a88444261e.jpg?width=1280)
+引用:https://mysterioussporadicgarden.themedia.jp/posts/954886
+![サービスの信頼性の階層](http://cdn.infoq.com/statics_s1_20150603-0041/resource/news/2015/06/too-big-to-fail/en/resources/Dickersons%20Hierarchy%20of%20Reliability.png)
+引用:https://www.infoq.com/jp/news/2015/07/too-big-to-fail
 - サービスの健全性の分類
   - システムがサービスとして一通り機能するための最も基本的な必要条件から、自己実現を可能とし問題に受動的に対応するのではなく、サービスの方向性を能動的にコントロールするような、より高いレベルの機能に至るまでの段階  
 - googleではFigure 3-1のようなサービスの信頼性の階層を使ってる
@@ -114,41 +118,40 @@ http_responses map:code 200:25 404:0 500:12
   - 事前に定義された間隔で、Borgmonは、各ターゲットに/ varzというURIからフェッチし、結果をデコードし、値をメモリ内に保存
   - Borgmonは、収集インターバル全体にわたってターゲットリスト中の各インスタンスからの収集のタイミングを分散させるので、各ターゲットからの収集は、他のターゲットと足並みをそろえて行われるわけではない
 
-- 10.4 Storage in the Time-Series Arena
-  - figure10-1のように管理
-  - in-memory databaseを使用し、一定期間が経つとdiskに書き込む
-  - In practice, the structure is a fixed-sized block of memory, known as the time-series arena, with a garbage collector that expires the oldest entries once the arena is full.
-  - horizon
-    - RAM内の一番古いエントリと一番新しいエントリの差
-    - datacenter Borgmonとglobal Borgmonは12時間
-    - 一つのデータに24byte必要だと12時間、1分単位では17GBのRAMを使う
+- 10.4 時系列のアリーナにおけるストレージ
+  - 図10-1のように管理する
+  - インメモリデータベースに保存し、定期的にチェックポイントを実行してディスクに書き込む
+  - 実際には、この構造は時系列アリーナと呼ばれる固定サイズのメモリブロックになり、時系列アリーナにはガベージコレクタがあり、アリーナが一杯になると、古いエントリから削除されていく
+  - ホライゾン
+    - RAM内の一番古いエントリと一番新しいエントリの差のこと
+    - データセンターBorgmonとグローバルBorgmonは12時間のデータを保存するサイズに設定されている
+    - 一つのデータポインタに24バイト必要なので12時間を1分単位保存するには17GBのRAMを使う
   - RAMではなくディスクにするものはTSDBと呼ばれる
-  - Borgmonでは古いデータをTSDBに投げる
-    - TSDBは遅いが、安く巨大なデータを扱える
+  - Borgmonでは過去のデータに対するクエリをTSDBに投げる
+    - TSDBはインメモリデータベースより遅いが、BorgmonのRAMより低コストで大容量
 
-- 10.4.1 Labels and Vectors
-  - figure10-2のように一次元にvalueを突っ込んでいく
-  - timestampは不要
-    - because the values are inserted in the vector at regular intervals in time
+- 10.4.1 ラベルとベクタ
+  - 図10-2のように時系列データは一次元に値を保存され、これをベクタと呼ぶ
+  - 値は一定間隔でベクタに挿入されるので、概念上はtimestampは不要でもよい
     - インターバルがわかれば計算できる
-  - 時系列データの名前はlabelsetである
-  - labelsetはkey=valueの1以上のペア(labes)からなる(varz pageにkeyはある)
-  - TSDBで一意にするために最低でも以下のlabelは付いている
-    - var  the name of the variable
-    - job  the name given to the type of server being monitored
-    - service  A loosely defined collection of jobs that provide a service to users, either internal or external
-    - zone  location (typically the datacenter)
-  - labelsetの例
+  - 時系列データの名前はラベルセット
+  - ラベルセットという名前がkey=valueのペアからなる集合として実装されているから
+  - TSDB内の時系列データを識別できるように、時系列データは最低でも以下のラベルが必要
+    - var 変数名 
+    - job モニタリングの対象となるサーバの種類の名前 
+    - service 緩やかに定義された、ユーザに対してサービスを提供するジョブの集合。ユーザは内部や外部の場合もある
+    - zone  この変数の収集を行ったBorgmonの場所(通常はデータセンター)
+  - これらのラベルは変数式と呼ばれる以下の形式にまとめられる
     - {var=http_requests,job=webserver,instance=host0:80,service=web,zone=us-west}
-  - 問い合わせクエリはすべてのlabelをセットする必要はない
-    - その場合はmatchしたものすべてが変える
+  - 時系列データに対するクエリでは、すべてのラベルをセットする必要はない
+    - その場合はマッチするしたものすべてが返される
     - 問い合わせ {var=http_requests,job=webserver,service=web,zone=us-west}
       - {var=http_requests,job=webserver,instance=host0:80,service=web,zone=us-west} 10
       - {var=http_requests,job=webserver,instance=host1:80,service=web,zone=us-west} 9
       - {var=http_requests,job=webserver,instance=host2:80,service=web,zone=us-west} 11
       - {var=http_requests,job=webserver,instance=host3:80,service=web,zone=us-west} 0
       - {var=http_requests,job=webserver,instance=host4:80,service=web,zone=us-west} 10
-    - 時間指定もできる  {var=http_requests,job=webserver,service=web,zone=us-west}[10m]
+    - 時間指定もできる(ext:過去10分間)  {var=http_requests,job=webserver,service=web,zone=us-west}[10m]
       -  {var=http_requests,job=webserver,instance=host0:80, ...} 0 1 2 3 4 5 6 7 8 9 10
       -  {var=http_requests,job=webserver,instance=host1:80, ...} 0 1 2 3 4 4 5 6 7 8 9
       -  {var=http_requests,job=webserver,instance=host2:80, ...} 0 0 0 0 0 0 0 0 0 0 0
@@ -185,18 +188,18 @@ http_responses map:code 200:25 404:0 500:12
   - グローバルBorgmon
     - ルールの評価とダッシュボードのレイヤーに分けられることもある
 - 10.8 ブラックボックスモニタリング
-  - いわゆる外形監視
-    - white-box monitoring means that you aren’t aware o what the users see.DNSエラーとかが見えないとか
-  - Proberでやっている
-    - runs a protocol check against a target and reports success or failure.
-    - The prober can send alerts directly to Alertmanager, or its own varz can be collected by a Borgmon
+  - いわゆる外形監視(ユーザが目にする外部のふるまい)
+    - ホワイトボックスモニタリングだけに依存すると、ユーザの視点に気づけなくなる。.DNSエラーとかが見えないとか
+  - Proberが解決してくれる。
+    - Proberは、ターゲットに対するプロトコルチェックを行って、成功や失敗をレポートする
+    - proberはAlertmanagerに直接送信できるが, 自信のvarzをBorgmonに収集してもらうこともできる
     - アラートマネージャに直接送るか自身のvarzでBorgmonに取得させる
-  - validate the response payload of the protocol (HTML contents of an HTTP response)
-    - response times by operation type and payload size
-      - they can slice and dice the user-visible performance.
-      - データサイズを取るのはいいのかも知れない
-  - can be pointed at either the frontend domain or behind the load balancer.
-    - detect localized failures and suppress alerts.
+  - Proberはプロトコルのレスポンスのペイロード(例えばHTTPのレスポンス中のHTMLのコンテンツ)を検証する
+    - 処理の種類やペイロードのサイズごとにレスポンスのヒストグラムをエクスポートする
+      - ユーザが体験するパフォーマンスをいろいろな切り口から分析することもある
+      - チェックーアンドーテストモデルに時系列データの生成のための多彩な値抽出機能を組み合わせた組み合わせたもの
+  - Proberはフロントエンドの領域に対しても、ロードバランサーの背後に対しても使える
+    - この2つをターゲットにすることで局所的な障害を検出して、アラートを抑制することができる
 - 10.9 設定のメンテナンス
   - Borgmon はルール言語のテンプレートもサポートしている。
   - エンジニアはマクロに似たこのシステムを利用し、再利用できるルールライブラリを構築できます。
